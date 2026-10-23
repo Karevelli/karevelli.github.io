@@ -80,6 +80,28 @@
     border: 1px solid var(--viewer-3d-border);
 }
 
+.viewer-3d__light
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    align-items: center;
+    margin: 0;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--viewer-3d-border);
+}
+
+.viewer-3d__value
+{
+    min-width: 2.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.viewer-3d__button
+{
+    font: inherit;
+}
+
 .viewer-3d__counts
 {
     margin: 0;

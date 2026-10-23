@@ -167,15 +167,33 @@ el sitio. Cada efecto se puede ajustar agregando valores, separados por comas:
 
 Los valores del cel son: `edgeWidth` (grosor de la línea; 0 la saca), `edgeColor` (color de la línea),
 `depthEdge` y `normalEdge` (qué tan marcado tiene que ser un borde para llevar línea), `tones` (0 apaga
-los dos tonos), `lightDirection` (de dónde viene la luz, como `[1, 1, 1]`: el primer número es
-hacia la derecha, el segundo hacia arriba y el tercero hacia el lado desde donde mira la cámara cuando
-abre la página; la luz queda fija aunque gires la vista), `threshold` (dónde empieza la
-sombra), `shadowTone` (qué tan oscura es), `lit` y `light` (el brillo del lado iluminado). Lo que no
-escribas queda con su valor normal.
+los dos tonos), `threshold` (dónde empieza la sombra), `shadowTone` (qué tan oscura es), `lit` y
+`light` (el brillo del lado iluminado). Lo que no escribas queda con su valor normal. El lado en sombra
+lo decide la luz del visor, la misma que se explica abajo.
 
 Un valor puede ser un número (`0.5`), `true` o `false`, un color (`"#rrggbb"`, entre comillas) o una lista
 de 2 a 4 números (`[1, 1, 1]`). En el visor aparece la casilla **Effects** (Efectos) para prenderlo y
 apagarlo, y el efecto se ve solo en la vista **Lit** (Iluminado).
+
+**De dónde viene la luz.** En `viewer.json` también podés elegir con qué luz abre el modelo, tenga o no
+efectos. Si los tiene, `lightAngle` va al lado de `effects`, separado por una coma:
+
+```json
+{
+    "lightAngle": { "azimuth": 30, "elevation": 45 },
+    "effects": [
+        { "shader": "cel" }
+    ]
+}
+```
+
+Los dos números son grados. `azimuth` es la vuelta alrededor del modelo: 0 es desde el frente (el lado
+desde donde mira la cámara cuando abre la página), los positivos van hacia la derecha y los negativos
+hacia la izquierda, hasta 180, que es desde atrás. `elevation` es la altura: 0 es a la altura del
+modelo, 90 es desde arriba y los negativos son desde abajo. Si no escribís `lightAngle`, la luz
+arranca desde el frente y arriba (`azimuth` 9, `elevation` 47). Quien mira la página puede girarla
+arrastrando con **Shift** apretado o con los controles **Light** (Luz), y **Reset light** (Restablecer
+luz) la devuelve a la de `viewer.json`.
 
 ### Un shader propio
 
