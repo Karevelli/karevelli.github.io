@@ -3,6 +3,8 @@
     1. Relative href and src values become absolute from the source folder, so a Spanish page
        served under /es/ loads the same files as its English version.
     2. A link to a folder whose direct children include an .fbx becomes a 3D viewer element.
+       The full address of the site and the folder of this repository on GitHub count as
+       links to that folder. A paragraph around the viewer is closed before it and reopened after.
 {%- endcomment -%}
 {%- assign rewrite_html = include.html -%}
 {%- assign rewrite_attributes = ' href="| src="' | split: '|' -%}
@@ -39,19 +41,49 @@
     {%- endfor -%}
     {%- assign rewrite_html = rewrite_out -%}
 {%- endfor -%}
+{%- assign rewrite_site_host = site.url | split: '://' | last | split: '/' | first | downcase -%}
+{%- assign rewrite_repository = site.repository | downcase -%}
 {%- assign rewrite_parts = rewrite_html | split: '<a href="' -%}
 {%- assign rewrite_out = rewrite_parts.first -%}
 {%- for rewrite_part in rewrite_parts offset: 1 -%}
     {%- assign rewrite_url = rewrite_part | split: '"' | first -%}
-    {%- assign rewrite_first_char = rewrite_url | slice: 0 -%}
-    {%- assign rewrite_first_two = rewrite_url | slice: 0, 2 -%}
+    {%- assign rewrite_path = rewrite_url -%}
+    {%- assign rewrite_scheme = rewrite_url | split: '://' | first | downcase -%}
+    {%- if rewrite_scheme == 'http' or rewrite_scheme == 'https' -%}
+        {%- assign rewrite_path = '' -%}
+        {%- assign rewrite_skip = rewrite_scheme.size | plus: 3 -%}
+        {%- assign rewrite_address = rewrite_url | slice: rewrite_skip, rewrite_url.size -%}
+        {%- assign rewrite_segments = rewrite_address | split: '/' -%}
+        {%- assign rewrite_host = rewrite_segments.first | downcase -%}
+        {%- if rewrite_host == rewrite_site_host -%}
+            {%- assign rewrite_path = rewrite_address | slice: rewrite_host.size, rewrite_address.size -%}
+            {%- if site.baseurl != '' -%}
+                {%- assign rewrite_base_head = rewrite_path | slice: 0, site.baseurl.size -%}
+                {%- if rewrite_base_head == site.baseurl -%}
+                    {%- assign rewrite_path = rewrite_path | remove_first: site.baseurl -%}
+                {%- endif -%}
+            {%- endif -%}
+        {%- elsif rewrite_host == 'github.com' or rewrite_host == 'www.github.com' -%}
+            {%- comment -%} github.com/<owner>/<repository>/tree/<branch>/<folder> {%- endcomment -%}
+            {%- assign rewrite_link_repository = rewrite_segments[1] | append: '/' | append: rewrite_segments[2] | downcase -%}
+            {%- if rewrite_link_repository == rewrite_repository and rewrite_segments[3] == 'tree' and rewrite_segments.size > 5 -%}
+                {%- for rewrite_segment in rewrite_segments offset: 5 -%}
+                    {%- assign rewrite_path = rewrite_path | append: '/' | append: rewrite_segment -%}
+                {%- endfor -%}
+            {%- endif -%}
+        {%- endif -%}
+    {%- endif -%}
+    {%- comment -%} Copied addresses escape spaces and accents; url_decode alone would turn + into a space. {%- endcomment -%}
+    {%- assign rewrite_path = rewrite_path | replace: '+', '%2B' | url_decode -%}
+    {%- assign rewrite_first_char = rewrite_path | slice: 0 -%}
+    {%- assign rewrite_first_two = rewrite_path | slice: 0, 2 -%}
     {%- assign rewrite_has_fbx = false -%}
     {%- assign rewrite_files = '' -%}
     {%- if rewrite_first_char == '/' and rewrite_first_two != '//' -%}
-        {%- assign rewrite_folder = rewrite_url -%}
-        {%- assign rewrite_last_char = rewrite_url | slice: -1 -%}
+        {%- assign rewrite_folder = rewrite_path -%}
+        {%- assign rewrite_last_char = rewrite_path | slice: -1 -%}
         {%- if rewrite_last_char != '/' -%}
-            {%- assign rewrite_folder = rewrite_url | append: '/' -%}
+            {%- assign rewrite_folder = rewrite_path | append: '/' -%}
         {%- endif -%}
         {%- assign rewrite_candidates = site.static_files | where_exp: "file", "file.path contains rewrite_folder" | sort: "path" -%}
         {%- for rewrite_file in rewrite_candidates -%}
@@ -75,14 +107,38 @@
     {%- if rewrite_has_fbx -%}
         {%- assign rewrite_anchor = rewrite_part | split: '</a>' | first -%}
         {%- assign rewrite_after = rewrite_part | remove_first: rewrite_anchor | remove_first: '</a>' -%}
+        {%- assign rewrite_folder_href = rewrite_folder | uri_escape -%}
+        {%- assign rewrite_anchor = rewrite_anchor | remove_first: rewrite_url | prepend: rewrite_folder_href -%}
         {%- assign rewrite_open_tag = rewrite_anchor | split: '>' | first | append: '>' -%}
         {%- assign rewrite_name = rewrite_anchor | remove_first: rewrite_open_tag | strip_html | strip | jsonify -%}
+        {%- comment -%} A figure cannot live inside a paragraph: close it before, dropping it when empty. {%- endcomment -%}
+        {%- assign rewrite_in_paragraph = false -%}
         {%- assign rewrite_out_tail = rewrite_out | slice: -3, 3 -%}
-        {%- assign rewrite_after_head = rewrite_after | slice: 0, 4 -%}
-        {%- if rewrite_out_tail == '<p>' and rewrite_after_head == '</p>' -%}
+        {%- if rewrite_out_tail == '<p>' -%}
+            {%- assign rewrite_in_paragraph = true -%}
             {%- assign rewrite_keep = rewrite_out.size | minus: 3 -%}
             {%- assign rewrite_out = rewrite_out | slice: 0, rewrite_keep -%}
-            {%- assign rewrite_after = rewrite_after | remove_first: '</p>' -%}
+        {%- elsif rewrite_out contains '<p>' -%}
+            {%- assign rewrite_open_text = rewrite_out | split: '<p>' | last -%}
+            {%- unless rewrite_open_text contains '</p>' -%}
+                {%- assign rewrite_in_paragraph = true -%}
+                {%- assign rewrite_open_blank = rewrite_open_text | strip -%}
+                {%- if rewrite_open_blank == '' -%}
+                    {%- assign rewrite_keep = rewrite_out.size | minus: rewrite_open_text.size | minus: 3 -%}
+                    {%- assign rewrite_out = rewrite_out | slice: 0, rewrite_keep -%}
+                {%- else -%}
+                    {%- assign rewrite_out = rewrite_out | append: '</p>' -%}
+                {%- endif -%}
+            {%- endunless -%}
+        {%- endif -%}
+        {%- comment -%} And reopen it after, unless nothing but its closing tag is left. {%- endcomment -%}
+        {%- if rewrite_in_paragraph -%}
+            {%- assign rewrite_close_text = rewrite_after | split: '</p>' | first | strip -%}
+            {%- if rewrite_after contains '</p>' and rewrite_close_text == '' -%}
+                {%- assign rewrite_after = rewrite_after | remove_first: '</p>' -%}
+            {%- else -%}
+                {%- assign rewrite_after = rewrite_after | prepend: '<p>' -%}
+            {%- endif -%}
         {%- endif -%}
         {%- capture rewrite_figure -%}
             {%- include model-figure.html name=rewrite_name files=rewrite_files anchor=rewrite_anchor -%}
