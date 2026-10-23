@@ -20,11 +20,17 @@
 //   viewer.setMode(mode)                'lit', 'wireframe' or a detected channel name.
 //   viewer.setChannelEnabled(ch, on)    Channel switches of the lit view.
 //   viewer.setWireframeOverlay(on)
+//   viewer.setEffectsEnabled(on)        The effects of the folder's viewer.json (see effects.js).
 //   viewer.selectModel(index)           Returns a promise.
 //
 // Frames always go through an EffectComposer: scene pass -> wireframe overlay pass (when on) ->
 // external passes -> OutputPass (tone mapping and sRGB output). With no external pass the chain
 // looks the same as rendering the scene directly.
+//
+// The effects of a viewer.json enter as external passes, after a prepass they share. They only
+// run in the lit view without the wireframe overlay, which they would paint over, and while they
+// run the scene is drawn without MSAA, like the prepass. Switched off, or without a viewer.json,
+// the frame is the standard one.
 //
 // Replaced materials and channel switches: in the lit view a replaced material wins, and the
 // switches only change the standard material used by the meshes that were not replaced. The
@@ -51,6 +57,7 @@ const TEXTS = {
         lit: 'Lit',
         wireframe: 'Wireframe',
         overlay: 'Wireframe overlay',
+        effects: 'Effects',
         channels: 'Channels',
         triangles: 'Triangles',
         vertices: 'Vertices',
@@ -76,6 +83,7 @@ const TEXTS = {
         lit: 'Iluminado',
         wireframe: 'Alambre',
         overlay: 'Alambre superpuesto',
+        effects: 'Efectos',
         channels: 'Canales',
         triangles: 'Triángulos',
         vertices: 'Vértices',
@@ -101,6 +109,7 @@ const COLOR_CHANNELS = new Set(['color', 'emissive']);
 const NEUTRAL_COLOR = 0xd9d9d9;
 const NEUTRAL_ROUGHNESS = 0.6;
 const DEFAULT_WIRE = '#4fc3f7';
+const SCENE_SAMPLES = 4;
 const BLANK_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 // Pieces are often open, single-sided shells. The offset keeps the wireframe overlay on top.
@@ -156,6 +165,8 @@ export class Viewer
         this.replacements = new Map();
         this.mode = 'lit';
         this.wireOverlay = false;
+        this.effects = null;
+        this.effectsEnabled = true;
         this.counts = { triangles: 0, vertices: 0 };
         this.renderQueued = false;
         this.disposed = false;
@@ -178,7 +189,7 @@ export class Viewer
         this.createRenderer();
         this.setStatus(this.texts.loading);
 
-        await Promise.all([this.loadTextures(), this.loadModel(0)]);
+        await Promise.all([this.loadTextures(), this.loadModel(0), this.loadEffects(sorted.config, sorted.shaders)]);
 
         this.channels = CHANNELS.filter((channel) =>
         {
@@ -275,6 +286,12 @@ export class Viewer
         this.applyMode();
     }
 
+    setEffectsEnabled(enabled)
+    {
+        this.effectsEnabled = enabled;
+        this.applyMode();
+    }
+
     async selectModel(index)
     {
         if (index === this.modelIndex || index < 0 || index >= this.models.length)
@@ -339,6 +356,10 @@ export class Viewer
         if (this.model !== null)
         {
             disposeGeometries(this.model);
+        }
+        if (this.effects !== null)
+        {
+            this.effects.dispose();
         }
         for (const texture of this.textures.values())
         {
@@ -406,7 +427,7 @@ export class Viewer
         this.standardMaterial = new THREE.MeshStandardMaterial(SURFACE);
         this.wireMaterial = new THREE.MeshBasicMaterial({ color: wire, wireframe: true, side: THREE.DoubleSide });
 
-        const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+        const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: SCENE_SAMPLES });
         this.composer = new EffectComposer(renderer, target);
         this.scenePass = new ScenePass(this.scene, this.camera);
         this.wirePass = new RenderPass(this.scene, this.camera, this.wireMaterial);
@@ -464,6 +485,39 @@ export class Viewer
             }
         });
         await Promise.all(jobs);
+    }
+
+    async loadEffects(configUrl, shaders)
+    {
+        if (configUrl === null)
+        {
+            return;
+        }
+        let effects = null;
+        try
+        {
+            const module = await import('./effects.js');
+            effects = await module.loadEffects(this.renderer, this.scene, this.camera, this.standardMaterial, configUrl, shaders);
+        }
+        catch (error)
+        {
+            console.error('viewer-3d: effects skipped,', error);
+            return;
+        }
+        if (effects === null)
+        {
+            return;
+        }
+        if (this.disposed)
+        {
+            effects.dispose();
+            return;
+        }
+        this.effects = effects;
+        for (const pass of effects.passes)
+        {
+            this.addPass(pass);
+        }
     }
 
     async loadModel(index)
@@ -634,10 +688,30 @@ export class Viewer
             this.scenePass.overrideMaterial = this.channelMaterial(this.mode);
         }
         this.wirePass.enabled = this.wireOverlay && this.mode !== 'wireframe';
+        if (this.effects !== null)
+        {
+            const active = this.effectsEnabled && this.mode === 'lit' && !this.wireOverlay;
+            this.effects.setEnabled(active);
+            // The prepass has no antialiasing: the lit pass drops it too, so both share one silhouette.
+            this.setSceneSamples(active ? 0 : SCENE_SAMPLES);
+        }
         // Inspection views show stored values and plain colors, so they skip tone mapping.
         this.renderer.toneMapping = this.mode === 'lit' ? THREE.NeutralToneMapping : THREE.NoToneMapping;
         this.syncControls();
         this.requestRender();
+    }
+
+    setSceneSamples(samples)
+    {
+        for (const target of [this.composer.renderTarget1, this.composer.renderTarget2])
+        {
+            if (target.samples !== samples)
+            {
+                // The renderer rebuilds the buffers with the new sample count on the next use.
+                target.samples = samples;
+                target.dispose();
+            }
+        }
     }
 
     // ---- Interface -------------------------------------------------------------------------
@@ -684,6 +758,15 @@ export class Viewer
         {
             this.setWireframeOverlay(checked);
         });
+
+        this.ui.effectsCheckbox = null;
+        if (this.effects !== null)
+        {
+            this.ui.effectsCheckbox = createCheckbox(bar, texts.effects, (checked) =>
+            {
+                this.setEffectsEnabled(checked);
+            });
+        }
 
         this.ui.channelCheckboxes = new Map();
         if (this.channels.length > 0)
@@ -767,6 +850,11 @@ export class Viewer
         this.ui.modeSelect.value = this.mode;
         this.ui.overlayCheckbox.checked = this.wireOverlay;
         this.ui.overlayCheckbox.disabled = this.mode === 'wireframe';
+        if (this.ui.effectsCheckbox !== null)
+        {
+            this.ui.effectsCheckbox.checked = this.effectsEnabled;
+            this.ui.effectsCheckbox.disabled = this.mode !== 'lit' || this.wireOverlay;
+        }
         for (const [channel, checkbox] of this.ui.channelCheckboxes)
         {
             checkbox.checked = this.enabled.has(channel);
