@@ -166,3 +166,22 @@
 {
     margin: 0.5rem 0;
 }
+
+/* Touch screens: every control at least 44 x 44 px, the minimum for a finger. */
+@media (pointer: coarse)
+{
+    .viewer-3d__field,
+    .viewer-3d__toggle
+    {
+        min-height: 44px;
+    }
+
+    .viewer-3d__field select,
+    .viewer-3d__field input[type="range"],
+    .viewer-3d__button,
+    .viewer-3d__dialog-close
+    {
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
