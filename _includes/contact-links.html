@@ -1,0 +1,19 @@
+{%- comment -%}
+    Outputs the contact list, or nothing at all when every field in _data/contact.yml is empty.
+{%- endcomment -%}
+{%- assign contact = site.data.contact -%}
+{%- capture contact_items -%}
+    {%- if contact.email and contact.email != '' %}
+    <li><a href="mailto:{{ contact.email }}">{{ contact.email }}</a></li>
+    {%- endif -%}
+    {%- for contact_link in contact.links -%}
+        {%- if contact_link.url and contact_link.url != '' %}
+    <li><a href="{{ contact_link.url }}" rel="me noopener">{{ contact_link.label }}</a></li>
+        {%- endif -%}
+    {%- endfor -%}
+{%- endcapture -%}
+{%- if contact_items != '' -%}
+<ul class="contact-links">
+    {{- contact_items }}
+</ul>
+{%- endif -%}

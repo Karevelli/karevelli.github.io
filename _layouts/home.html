@@ -1,0 +1,12 @@
+---
+layout: default
+---
+{%- assign t = site.data.i18n[page.lang] -%}
+<section class="intro">
+    <h1>{{ site.title }}</h1>
+    <p class="tagline">{{ t.home.tagline }}</p>
+</section>
+<section class="projects">
+    {% include project-grid.html mode='home' %}
+    <p class="more"><a href="{% include localized-url.html url='/projects/' %}">{{ t.home.view_all }}</a></p>
+</section>

@@ -1,0 +1,36 @@
+{%- assign t = site.data.i18n[page.lang] -%}
+{%- comment -%}
+    Every page url, space separated, so lookups are a cheap "contains": reading site.pages
+    reapplies the front matter defaults to every page, and their glob scans the whole site.
+{%- endcomment -%}
+{%- assign site_urls = site.pages | map: "url" | join: ' ' | prepend: ' ' | append: ' ' -%}
+{%- if page.lang == 'es' -%}
+    {%- assign url_en = page.url | remove_first: '/es' -%}
+    {%- assign url_es = page.url -%}
+    {%- assign alternate_key = url_en | prepend: ' ' | append: ' ' -%}
+{%- else -%}
+    {%- assign url_en = page.url -%}
+    {%- assign url_es = page.url | prepend: '/es' -%}
+    {%- assign alternate_key = url_es | prepend: ' ' | append: ' ' -%}
+{%- endif -%}
+{%- assign has_alternate = false -%}
+{%- if site_urls contains alternate_key -%}
+    {%- assign has_alternate = true -%}
+{%- endif -%}
+{%- assign page_dir_size = page.path.size | minus: page.name.size -%}
+{%- assign page_dir = page.path | slice: 0, page_dir_size | prepend: '/' -%}
+<!DOCTYPE html>
+<html lang="{{ page.lang }}">
+<head>
+    {%- include head.html %}
+</head>
+<body>
+    {%- include header.html %}
+    <main class="site-main">
+        <div class="container">
+            {% include rewrite-content.html html=content dir=page_dir %}
+        </div>
+    </main>
+    {%- include footer.html %}
+</body>
+</html>

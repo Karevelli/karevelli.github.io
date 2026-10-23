@@ -1,0 +1,16 @@
+{%- comment -%}
+    Outputs include.url, or its Spanish version when the page is Spanish and that version exists.
+    site_urls is the list built by the default layout; layouts rendered before it build their own
+    on first use, and the assigned variable lasts for the rest of that layout.
+{%- endcomment -%}
+{%- assign localized_url = include.url -%}
+{%- if page.lang == 'es' -%}
+    {%- unless site_urls -%}
+        {%- assign site_urls = site.pages | map: "url" | join: ' ' | prepend: ' ' | append: ' ' -%}
+    {%- endunless -%}
+    {%- assign localized_key = include.url | prepend: '/es' | prepend: ' ' | append: ' ' -%}
+    {%- if site_urls contains localized_key -%}
+        {%- assign localized_url = include.url | prepend: '/es' -%}
+    {%- endif -%}
+{%- endif -%}
+{{- localized_url | relative_url -}}
