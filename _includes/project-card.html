@@ -16,7 +16,11 @@
 {%- if include.project.cover -%}
     {%- assign card_cover = include.project.cover | prepend: card_dir -%}
 {%- else -%}
-    {%- assign card_candidates = site.static_files | where_exp: "file", "file.path contains card_dir" | sort: "path" -%}
+    {%- comment -%} The files of the folder from the jekyll-build-cache plugin or, without it, filtered here. {%- endcomment -%}
+    {%- assign card_candidates = site.folder_files[card_dir] -%}
+    {%- unless site.folder_files -%}
+        {%- assign card_candidates = site.static_files | where_exp: "file", "file.path contains card_dir" | sort: "path" -%}
+    {%- endunless -%}
     {%- for card_file in card_candidates -%}
         {%- assign card_head = card_file.path | slice: 0, card_dir.size -%}
         {%- assign card_rest = card_file.path | remove_first: card_dir -%}

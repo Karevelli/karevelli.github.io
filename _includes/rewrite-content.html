@@ -85,7 +85,11 @@
         {%- if rewrite_last_char != '/' -%}
             {%- assign rewrite_folder = rewrite_path | append: '/' -%}
         {%- endif -%}
-        {%- assign rewrite_candidates = site.static_files | where_exp: "file", "file.path contains rewrite_folder" | sort: "path" -%}
+        {%- comment -%} The files of the folder from the jekyll-build-cache plugin or, without it, filtered here. {%- endcomment -%}
+        {%- assign rewrite_candidates = site.folder_files[rewrite_folder] -%}
+        {%- unless site.folder_files -%}
+            {%- assign rewrite_candidates = site.static_files | where_exp: "file", "file.path contains rewrite_folder" | sort: "path" -%}
+        {%- endunless -%}
         {%- for rewrite_file in rewrite_candidates -%}
             {%- assign rewrite_head = rewrite_file.path | slice: 0, rewrite_folder.size -%}
             {%- assign rewrite_rest = rewrite_file.path | remove_first: rewrite_folder -%}
