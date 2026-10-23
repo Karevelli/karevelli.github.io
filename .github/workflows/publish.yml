@@ -1,0 +1,71 @@
+# Builds the site with the same Jekyll as GitHub Pages, adds smaller versions of the project
+# images and publishes the result.
+# It only publishes from main and when the Pages source of the repository is "GitHub Actions";
+# otherwise the deploy job is skipped and the run still succeeds.
+name: Publish site
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+concurrency:
+    group: pages
+    cancel-in-progress: false
+
+jobs:
+    build:
+        runs-on: ubuntu-24.04
+        outputs:
+            publish: ${{ steps.source.outputs.publish }}
+        steps:
+            - name: Check the Pages source
+              id: source
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  build_type=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq .build_type 2> /dev/null) || build_type="none"
+                  publish=false
+                  if [ "${build_type}" != "workflow" ]
+                  then
+                      echo "Publishing skipped: the Pages source is '${build_type}', not GitHub Actions."
+                  elif [ "${GITHUB_REF}" != "refs/heads/main" ]
+                  then
+                      echo "Publishing skipped: ${GITHUB_REF} is not main."
+                  else
+                      publish=true
+                  fi
+                  echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
+            - uses: actions/checkout@v7
+            - uses: ruby/setup-ruby@v1
+              with:
+                  ruby-version: "3.3"
+                  bundler-cache: true
+            - name: Install libvips
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install --yes --no-install-recommends libvips-tools
+            - name: Build with Jekyll
+              run: bundle exec jekyll build
+              env:
+                  JEKYLL_ENV: production
+            - name: Generate image sizes
+              run: ruby .github/scripts/responsive-images.rb _site
+            - uses: actions/upload-pages-artifact@v5
+
+    deploy:
+        needs: build
+        if: needs.build.outputs.publish == 'true'
+        runs-on: ubuntu-24.04
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@v5
