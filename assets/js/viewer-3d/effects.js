@@ -44,6 +44,7 @@ uniform mat4 u_projection;
 uniform mat4 u_inverseProjection;
 uniform mat4 u_view;
 uniform mat4 u_inverseView;
+uniform vec3 u_lightDirection;
 
 varying vec2 vUv;
 
@@ -61,10 +62,11 @@ vec3 readNormal(vec2 uv)
 #line 1
 `;
 
+// config is the parsed viewer.json. lightDirection is the viewer's own vector, kept up to date by it.
 // Returns an EffectChain, or null when no effect could be used.
-export async function loadEffects(renderer, scene, camera, standardMaterial, configUrl, shaders)
+export async function loadEffects(renderer, scene, camera, standardMaterial, lightDirection, config, shaders)
 {
-    const entries = await readEntries(configUrl);
+    const entries = readEntries(config);
     const sources = await Promise.all(entries.map((entry) =>
     {
         return readSource(entry.shader, shaders);
@@ -78,7 +80,7 @@ export async function loadEffects(renderer, scene, camera, standardMaterial, con
         {
             continue;
         }
-        const pass = new EffectPass(createMaterial(entries[i], sources[i], prepass, camera), camera);
+        const pass = new EffectPass(createMaterial(entries[i], sources[i], prepass, camera, lightDirection), camera);
         const log = compileLog(renderer, pass);
         if (log !== null)
         {
@@ -230,30 +232,15 @@ class EffectPass extends Pass
     }
 }
 
-async function readEntries(configUrl)
+function readEntries(config)
 {
-    let config;
-    try
-    {
-        const response = await fetch(configUrl);
-        if (!response.ok)
-        {
-            throw new Error('HTTP ' + response.status);
-        }
-        config = await response.json();
-    }
-    catch (error)
-    {
-        console.error('viewer-3d: viewer.json could not be read (' + error.message + '), no effects.', configUrl);
-        return [];
-    }
     if (config === null || typeof config !== 'object' || config.effects === undefined)
     {
         return [];
     }
     if (!Array.isArray(config.effects))
     {
-        console.error('viewer-3d: "effects" in viewer.json is not a list, no effects.', configUrl);
+        console.error('viewer-3d: "effects" in viewer.json is not a list, no effects.', config.effects);
         return [];
     }
     return config.effects.filter((entry) =>
@@ -304,7 +291,7 @@ async function readSource(shader, shaders)
     }
 }
 
-function createMaterial(entry, source, prepass, camera)
+function createMaterial(entry, source, prepass, camera, lightDirection)
 {
     const declared = new Map();
     const fragmentSource = source.replace(DECLARATION, (declaration, type, name, initializer, text) =>
@@ -331,7 +318,8 @@ function createMaterial(entry, source, prepass, camera)
         u_projection: { value: camera.projectionMatrix },
         u_inverseProjection: { value: camera.projectionMatrixInverse },
         u_view: { value: camera.matrixWorldInverse },
-        u_inverseView: { value: camera.matrixWorld }
+        u_inverseView: { value: camera.matrixWorld },
+        u_lightDirection: { value: lightDirection }
     };
     for (const [name, declaration] of declared)
     {

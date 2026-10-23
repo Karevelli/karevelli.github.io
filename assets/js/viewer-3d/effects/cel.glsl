@@ -19,6 +19,8 @@
 //   float u_cameraNear, u_cameraFar
 //   mat4 u_projection, u_inverseProjection
 //   mat4 u_view                    World to view; u_inverseView goes back.
+//   vec3 u_lightDirection          Toward the main light, world space, unit length. It follows the
+//                                  light the visitor turns, and the "lightAngle" of viewer.json.
 //   varying vec2 vUv               0 to 1 across the frame.
 //   float readLinearDepth(vec2 uv) Distance from the camera along its view axis.
 //   vec3 readNormal(vec2 uv)       The normal of u_normal unpacked, in view space.
@@ -43,12 +45,11 @@ uniform float u_depthEdge = 0.02;
 uniform float u_normalEdge = 0.4;
 uniform vec3 u_edgeColor = vec3(0.0);
 
-// The two tones (0 leaves the color as drawn): direction toward the light in world space; the
-// diffuse below which a pixel is the shaded tone; how dark that tone is; how bright the lit side
-// is where it meets the shaded one, ramping to full light (1 is one flat tone, 0 leaves the lit
-// side as drawn); and how much the base color is multiplied by.
+// The two tones (0 leaves the color as drawn): the diffuse below which a pixel is the shaded tone;
+// how dark that tone is; how bright the lit side is where it meets the shaded one, ramping to full
+// light (1 is one flat tone, 0 leaves the lit side as drawn); and how much the base color is
+// multiplied by.
 uniform float u_tones = 1.0;
-uniform vec3 u_lightDirection = vec3(1.0, 1.0, 1.0);
 uniform float u_threshold = 0.5;
 uniform float u_shadowTone = 0.4;
 uniform float u_lit = 1.0;

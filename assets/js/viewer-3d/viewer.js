@@ -21,7 +21,19 @@
 //   viewer.setChannelEnabled(ch, on)    Channel switches of the lit view.
 //   viewer.setWireframeOverlay(on)
 //   viewer.setEffectsEnabled(on)        The effects of the folder's viewer.json (see effects.js).
+//   viewer.setLightAngle(az, el)        Turns the light, azimuth and elevation in degrees.
+//   viewer.lightAngle                   { azimuth, elevation } of the light on screen.
+//   viewer.resetLight()                 Back to the angle the viewer started with.
 //   viewer.selectModel(index)           Returns a promise.
+//
+// The light is a directional main light, without shadows, plus the environment, which fills the
+// rest and gives the reflections. Turning the light points the main light from the given angle
+// and turns the environment with it (scene.environmentRotation), so its own brightest side follows:
+// azimuth around the vertical, 0 from the front (+Z), positive toward +X (-180 to 180); elevation
+// 0 at the horizon, 90 from above, negative from below. The viewer.json of the folder may set the
+// starting angle, "lightAngle": { "azimuth": 30, "elevation": 45 }; without it the environment is
+// not rotated at all. The visitor turns it with Shift + drag on the model or with the Light
+// controls, and while it turns a marker shows where it comes from, drawn after the output pass.
 //
 // Frames always go through an EffectComposer: scene pass -> wireframe overlay pass (when on) ->
 // external passes -> OutputPass (tone mapping and sRGB output). With no external pass the chain
@@ -62,6 +74,10 @@ const TEXTS = {
         triangles: 'Triangles',
         vertices: 'Vertices',
         textures: 'Textures',
+        light: 'Light',
+        lightAzimuth: 'Direction',
+        lightElevation: 'Height',
+        resetLight: 'Reset light',
         close: 'Close',
         loading: 'Loading…',
         failed: 'The model could not be loaded.',
@@ -88,6 +104,10 @@ const TEXTS = {
         triangles: 'Triángulos',
         vertices: 'Vértices',
         textures: 'Texturas',
+        light: 'Luz',
+        lightAzimuth: 'Dirección',
+        lightElevation: 'Altura',
+        resetLight: 'Restablecer luz',
         close: 'Cerrar',
         loading: 'Cargando…',
         failed: 'No se pudo cargar el modelo.',
@@ -111,6 +131,20 @@ const NEUTRAL_ROUGHNESS = 0.6;
 const DEFAULT_WIRE = '#4fc3f7';
 const SCENE_SAMPLES = 4;
 const BLANK_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+// The default angle, in degrees: where the brightest side of the environment is, the direction of
+// the first order (L1) of the light a white diffuse sphere gets from it, measured at 8.8 and 46.7
+// and rounded. The main light starts there too.
+const LIGHT_AZIMUTH = 9;
+const LIGHT_ELEVATION = 47;
+// The environment alone is too even to show where the light is. Half of it plus the main light
+// keeps the mean brightness at the default angle within 5% of the environment alone, and makes the
+// side light about twice as readable; a stronger main light washes out the side facing it.
+const MAIN_LIGHT_INTENSITY = 5;
+const ENVIRONMENT_INTENSITY = 0.5;
+// Shift + drag turns the light this many degrees per stage height, the rate OrbitControls turns the camera.
+const LIGHT_DRAG_TURN = 360;
+const LIGHT_MARKER_COLOR = 0xffd54f;
 
 // Pieces are often open, single-sided shells. The offset keeps the wireframe overlay on top.
 const SURFACE = { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
@@ -167,6 +201,11 @@ export class Viewer
         this.wireOverlay = false;
         this.effects = null;
         this.effectsEnabled = true;
+        this.initialLight = { azimuth: LIGHT_AZIMUTH, elevation: LIGHT_ELEVATION };
+        this.light = { ...this.initialLight };
+        // Shared with the effects as u_lightDirection, so it is updated in place.
+        this.lightDirection = lightVector(LIGHT_AZIMUTH, LIGHT_ELEVATION);
+        this.lightDrag = null;
         this.counts = { triangles: 0, vertices: 0 };
         this.renderQueued = false;
         this.disposed = false;
@@ -189,7 +228,7 @@ export class Viewer
         this.createRenderer();
         this.setStatus(this.texts.loading);
 
-        await Promise.all([this.loadTextures(), this.loadModel(0), this.loadEffects(sorted.config, sorted.shaders)]);
+        await Promise.all([this.loadTextures(), this.loadModel(0), this.loadFolderConfig(sorted.config, sorted.shaders)]);
 
         this.channels = CHANNELS.filter((channel) =>
         {
@@ -292,6 +331,26 @@ export class Viewer
         this.applyMode();
     }
 
+    get lightAngle()
+    {
+        return { azimuth: this.light.azimuth, elevation: this.light.elevation };
+    }
+
+    setLightAngle(azimuth, elevation)
+    {
+        if (!Number.isFinite(azimuth) || !Number.isFinite(elevation))
+        {
+            return;
+        }
+        this.light = { azimuth: wrapDegrees(azimuth), elevation: THREE.MathUtils.clamp(elevation, -90, 90) };
+        this.applyLight();
+    }
+
+    resetLight()
+    {
+        this.setLightAngle(this.initialLight.azimuth, this.initialLight.elevation);
+    }
+
     async selectModel(index)
     {
         if (index === this.modelIndex || index < 0 || index >= this.models.length)
@@ -340,6 +399,16 @@ export class Viewer
             return;
         }
         this.composer.render();
+        if (this.lightMarker.visible)
+        {
+            // Over the finished frame: the effects, the prepass and the tone mapping never see it.
+            const renderer = this.renderer;
+            renderer.setRenderTarget(null);
+            renderer.autoClear = false;
+            renderer.clearDepth();
+            renderer.render(this.markerScene, this.camera);
+            renderer.autoClear = true;
+        }
     }
 
     dispose()
@@ -374,6 +443,17 @@ export class Viewer
         {
             this.standardMaterial.dispose();
             this.wireMaterial.dispose();
+        }
+        if (this.markerScene !== undefined)
+        {
+            this.markerScene.traverse((child) =>
+            {
+                if (child.geometry !== undefined)
+                {
+                    child.geometry.dispose();
+                    child.material.dispose();
+                }
+            });
         }
         if (this.composer !== undefined)
         {
@@ -419,8 +499,12 @@ export class Viewer
         const pmrem = new THREE.PMREMGenerator(renderer);
         const room = new RoomEnvironment();
         this.scene.environment = pmrem.fromScene(room, 0.04).texture;
+        this.scene.environmentIntensity = ENVIRONMENT_INTENSITY;
         room.dispose();
         pmrem.dispose();
+
+        this.mainLight = new THREE.DirectionalLight(0xffffff, MAIN_LIGHT_INTENSITY);
+        this.scene.add(this.mainLight, this.mainLight.target);
 
         this.camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
 
@@ -443,6 +527,8 @@ export class Viewer
         {
             this.requestRender();
         });
+        this.listenLightDrag();
+        this.createLightMarker();
 
         this.resize();
         this.resizeObserver = new ResizeObserver(() =>
@@ -450,6 +536,115 @@ export class Viewer
             this.resize();
         });
         this.resizeObserver.observe(this.ui.stage);
+    }
+
+    // Shift + left drag turns the light. OrbitControls pans on it and listens on the canvas, so the
+    // stage takes the press first, in the capture phase, and the canvas never receives it.
+    listenLightDrag()
+    {
+        const stage = this.ui.stage;
+        stage.addEventListener('pointerdown', (event) =>
+        {
+            if (!event.shiftKey || event.pointerType !== 'mouse' || event.button !== 0 || this.lightDrag !== null)
+            {
+                return;
+            }
+            event.stopPropagation();
+            event.preventDefault();
+            this.controls.enabled = false;
+            stage.setPointerCapture(event.pointerId);
+            this.lightDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+            this.setLightMarkerVisible(true);
+        }, { capture: true });
+
+        // Right moves the light toward +X, to the right as seen from the camera the viewer opens with.
+        stage.addEventListener('pointermove', (event) =>
+        {
+            const drag = this.lightDrag;
+            if (drag === null || event.pointerId !== drag.pointerId)
+            {
+                return;
+            }
+            const degreesPerPixel = LIGHT_DRAG_TURN / Math.max(1, stage.clientHeight);
+            const dx = event.clientX - drag.x;
+            const dy = event.clientY - drag.y;
+            drag.x = event.clientX;
+            drag.y = event.clientY;
+            this.setLightAngle(this.light.azimuth + dx * degreesPerPixel, this.light.elevation - dy * degreesPerPixel);
+        });
+
+        const end = (event) =>
+        {
+            if (this.lightDrag === null || event.pointerId !== this.lightDrag.pointerId)
+            {
+                return;
+            }
+            this.lightDrag = null;
+            this.controls.enabled = true;
+            this.setLightMarkerVisible(false);
+        };
+        stage.addEventListener('pointerup', end);
+        stage.addEventListener('pointercancel', end);
+    }
+
+    // A faint ball around the model and a dot on it where the light comes from, with a ray to the center.
+    createLightMarker()
+    {
+        this.markerScene = new THREE.Scene();
+        const marker = new THREE.Group();
+        marker.visible = false;
+        const ball = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 48, 24),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false }));
+        const pointer = new THREE.Group();
+        const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.06, 16, 8),
+            new THREE.MeshBasicMaterial({ color: LIGHT_MARKER_COLOR, toneMapped: false }));
+        dot.position.set(0, 0, 1);
+        const ray = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1)]),
+            new THREE.LineBasicMaterial({ color: LIGHT_MARKER_COLOR, toneMapped: false }));
+        pointer.add(dot, ray);
+        marker.add(ball, pointer);
+        this.markerScene.add(marker);
+        this.lightMarker = marker;
+        this.lightPointer = pointer;
+    }
+
+    setLightMarkerVisible(visible)
+    {
+        if (this.lightMarker.visible === visible)
+        {
+            return;
+        }
+        this.lightMarker.visible = visible;
+        this.requestRender();
+    }
+
+    applyLight()
+    {
+        const { azimuth, elevation } = this.light;
+        const rotation = this.scene.environmentRotation;
+        if (azimuth === LIGHT_AZIMUTH && elevation === LIGHT_ELEVATION)
+        {
+            // Exactly the environment as it is, not rotations that only cancel out up to rounding.
+            rotation.set(0, 0, 0);
+        }
+        else
+        {
+            // scene.environmentRotation moves the environment by the rotation. This one takes the main
+            // light to azimuth 0, tilts it to the new elevation and turns it to the new azimuth, so the
+            // vertical of the room only tilts with the elevation.
+            const matrix = new THREE.Matrix4().makeRotationY(THREE.MathUtils.degToRad(azimuth))
+                .multiply(new THREE.Matrix4().makeRotationX(THREE.MathUtils.degToRad(LIGHT_ELEVATION - elevation)))
+                .multiply(new THREE.Matrix4().makeRotationY(THREE.MathUtils.degToRad(-LIGHT_AZIMUTH)));
+            rotation.setFromRotationMatrix(matrix);
+        }
+        this.lightDirection.copy(lightVector(azimuth, elevation));
+        this.mainLight.position.copy(this.mainLight.target.position).add(this.lightDirection);
+        this.lightPointer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.lightDirection);
+        this.syncLightControls();
+        this.requestRender();
     }
 
     resize()
@@ -487,9 +682,24 @@ export class Viewer
         await Promise.all(jobs);
     }
 
-    async loadEffects(configUrl, shaders)
+    async loadFolderConfig(configUrl, shaders)
     {
-        if (configUrl === null)
+        const config = configUrl === null ? null : await readFolderConfig(configUrl);
+        if (config !== null && config.lightAngle !== undefined)
+        {
+            const light = readLight(config.lightAngle);
+            if (light !== null)
+            {
+                this.initialLight = light;
+            }
+        }
+        this.resetLight();
+        await this.loadEffects(config, shaders);
+    }
+
+    async loadEffects(config, shaders)
+    {
+        if (config === null)
         {
             return;
         }
@@ -497,7 +707,7 @@ export class Viewer
         try
         {
             const module = await import('./effects.js');
-            effects = await module.loadEffects(this.renderer, this.scene, this.camera, this.standardMaterial, configUrl, shaders);
+            effects = await module.loadEffects(this.renderer, this.scene, this.camera, this.standardMaterial, this.lightDirection, config, shaders);
         }
         catch (error)
         {
@@ -619,6 +829,11 @@ export class Viewer
         this.controls.minDistance = radius * 0.05;
         this.controls.maxDistance = distance * 5;
         this.controls.update();
+
+        this.lightMarker.position.copy(sphere.center);
+        this.lightMarker.scale.setScalar(radius);
+        this.mainLight.target.position.copy(sphere.center);
+        this.mainLight.position.copy(sphere.center).add(this.lightDirection);
     }
 
     // ---- Materials and modes ---------------------------------------------------------------
@@ -784,6 +999,31 @@ export class Viewer
             }
         }
 
+        const light = createElement('fieldset', 'viewer-3d__light', bar);
+        createElement('legend', '', light).textContent = texts.light;
+        const hideMarker = () =>
+        {
+            this.setLightMarkerVisible(false);
+        };
+        this.ui.lightAzimuth = createSlider(light, texts.lightAzimuth, -180, 180, (value) =>
+        {
+            this.setLightMarkerVisible(true);
+            this.setLightAngle(value, this.light.elevation);
+        }, hideMarker);
+        this.ui.lightElevation = createSlider(light, texts.lightElevation, -90, 90, (value) =>
+        {
+            this.setLightMarkerVisible(true);
+            this.setLightAngle(this.light.azimuth, value);
+        }, hideMarker);
+        const reset = createElement('button', 'viewer-3d__button', light);
+        reset.type = 'button';
+        reset.textContent = texts.resetLight;
+        reset.addEventListener('click', () =>
+        {
+            this.resetLight();
+        });
+        this.syncLightControls();
+
         this.ui.counts = createElement('p', 'viewer-3d__counts', bar);
 
         if (this.channels.length > 0)
@@ -868,6 +1108,68 @@ export class Viewer
         this.ui.counts.textContent = this.texts.triangles + ': ' + format.format(this.counts.triangles)
             + ' · ' + this.texts.vertices + ': ' + format.format(this.counts.vertices);
     }
+
+    syncLightControls()
+    {
+        if (this.ui === null || this.ui.lightAzimuth === undefined)
+        {
+            return;
+        }
+        const sliders = [[this.ui.lightAzimuth, this.light.azimuth], [this.ui.lightElevation, this.light.elevation]];
+        for (const [slider, value] of sliders)
+        {
+            slider.input.value = String(value);
+            slider.output.textContent = Math.round(value) + '°';
+        }
+    }
+}
+
+// The direction toward a light at that azimuth and elevation, in degrees.
+function lightVector(azimuth, elevation)
+{
+    const a = THREE.MathUtils.degToRad(azimuth);
+    const e = THREE.MathUtils.degToRad(elevation);
+    return new THREE.Vector3(Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e));
+}
+
+function wrapDegrees(degrees)
+{
+    return ((degrees + 180) % 360 + 360) % 360 - 180;
+}
+
+// Null when the file cannot be used; the effects and the light keep their defaults then.
+async function readFolderConfig(url)
+{
+    let config;
+    try
+    {
+        const response = await fetch(url);
+        if (!response.ok)
+        {
+            throw new Error('HTTP ' + response.status);
+        }
+        config = await response.json();
+    }
+    catch (error)
+    {
+        console.error('viewer-3d: viewer.json could not be read (' + error.message + '), no effects.', url);
+        return null;
+    }
+    return config !== null && typeof config === 'object' ? config : null;
+}
+
+// "lightAngle": { "azimuth": degrees, "elevation": -90 to 90 }; a missing one keeps its default.
+function readLight(value)
+{
+    const valid = value !== null && typeof value === 'object' && !Array.isArray(value)
+        && (value.azimuth === undefined || Number.isFinite(value.azimuth))
+        && (value.elevation === undefined || (Number.isFinite(value.elevation) && Math.abs(value.elevation) <= 90));
+    if (!valid)
+    {
+        console.error('viewer-3d: "lightAngle" in viewer.json ignored, it takes { "azimuth": degrees, "elevation": -90 to 90 }.', value);
+        return null;
+    }
+    return { azimuth: wrapDegrees(value.azimuth ?? LIGHT_AZIMUTH), elevation: value.elevation ?? LIGHT_ELEVATION };
 }
 
 function readConfig(figure)
@@ -927,6 +1229,28 @@ function createCheckbox(parent, labelText, onChange)
         onChange(checkbox.checked);
     });
     return checkbox;
+}
+
+// onEnd runs when the slider is let go.
+function createSlider(parent, labelText, min, max, onInput, onEnd)
+{
+    const label = createElement('label', 'viewer-3d__field', parent);
+    createElement('span', '', label).textContent = labelText;
+    const input = createElement('input', '', label);
+    input.type = 'range';
+    input.min = String(min);
+    input.max = String(max);
+    input.step = '1';
+    const output = createElement('output', 'viewer-3d__value', label);
+    input.addEventListener('input', () =>
+    {
+        onInput(Number(input.value));
+    });
+    for (const type of ['change', 'pointerup', 'pointercancel', 'blur'])
+    {
+        input.addEventListener(type, onEnd);
+    }
+    return { input, output };
 }
 
 function disposeGeometries(object)
