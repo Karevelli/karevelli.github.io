@@ -51,7 +51,8 @@ Cada proyecto es una carpeta dentro de `projects/`.
    - `year:` el año.
    - `summary:` una oración que se ve en la tarjeta del proyecto.
    - `cover:` la imagen de la tarjeta, por ejemplo `cover: portada.png`. Si borrás la línea, se usa la
-     primera imagen de la carpeta por orden alfabético.
+     primera imagen de la carpeta por orden alfabético. La tarjeta muestra la imagen en proporción 4:3
+     (como 1600 × 1200) y recorta lo que sobra a los costados o arriba y abajo.
    - `featured:` `true` para mostrarlo en Home, `false` para no.
    - `listed:` `false` lo oculta de las listas (ver [Ocultar](#editar-ocultar-y-destacar)).
 4. Debajo del segundo `---`, borrá el texto de ejemplo y escribí el tuyo.
@@ -166,7 +167,9 @@ el sitio. Cada efecto se puede ajustar agregando valores, separados por comas:
 
 Los valores del cel son: `edgeWidth` (grosor de la línea; 0 la saca), `edgeColor` (color de la línea),
 `depthEdge` y `normalEdge` (qué tan marcado tiene que ser un borde para llevar línea), `tones` (0 apaga
-los dos tonos), `lightDirection` (de dónde viene la luz, como `[1, 1, 1]`), `threshold` (dónde empieza la
+los dos tonos), `lightDirection` (de dónde viene la luz, como `[1, 1, 1]`: el primer número es
+hacia la derecha, el segundo hacia arriba y el tercero hacia el lado desde donde mira la cámara cuando
+abre la página; la luz queda fija aunque gires la vista), `threshold` (dónde empieza la
 sombra), `shadowTone` (qué tan oscura es), `lit` y `light` (el brillo del lado iluminado). Lo que no
 escribas queda con su valor normal.
 
