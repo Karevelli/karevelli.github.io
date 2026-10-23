@@ -47,10 +47,19 @@ jobs:
               with:
                   ruby-version: "3.3"
                   bundler-cache: true
+            # Downloading libvips from the Ubuntu mirror has taken minutes; its packages are kept
+            # between runs and only what changed is downloaded again.
+            - uses: actions/cache@v6
+              with:
+                  path: ~/libvips-packages
+                  key: libvips-packages-ubuntu-24.04
             - name: Install libvips
               run: |
+                  mkdir -p ~/libvips-packages/partial
                   sudo apt-get update
-                  sudo apt-get install --yes --no-install-recommends libvips-tools
+                  sudo apt-get install --yes --no-install-recommends -o Dir::Cache::Archives="${HOME}/libvips-packages" libvips-tools
+                  # apt leaves its files to root; the cache is saved as the runner user.
+                  sudo chown -R "$(id -u):$(id -g)" ~/libvips-packages
             - name: Build with Jekyll
               run: bundle exec jekyll build
               env:

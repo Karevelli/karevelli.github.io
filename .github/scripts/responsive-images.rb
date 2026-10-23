@@ -5,6 +5,7 @@
 # Usage: ruby responsive-images.rb <site folder>
 
 require "cgi"
+require "etc"
 require "open3"
 require "uri"
 
@@ -28,18 +29,35 @@ module ResponsiveImages
         files = Dir.glob(File.join(projects, "**", "*")).sort
         # Images of a model folder are its textures: the viewer needs them untouched.
         models = files.select { |path| File.extname(path).downcase == ".fbx" }.map { |path| File.dirname(path) + "/" }.uniq
-        images = {}
-        files.each do |path|
-            next unless RESIZED_EXTENSIONS.include?(File.extname(path).downcase)
-            next if models.any? { |model| path.start_with?(model) }
-            images[path] = resize(path)
+        resized = files.select do |path|
+            RESIZED_EXTENSIONS.include?(File.extname(path).downcase) && models.none? { |model| path.start_with?(model) }
         end
+        images = resize_all(resized)
         Dir.glob(File.join(site, "**", "*.html")).each do |page|
             html = File.read(page, encoding: "utf-8")
             marked = mark(html, site, images)
             File.write(page, marked) unless marked == html
         end
         puts "#{images.size} images, #{images.values.sum { |image| image[:widths].size }} versions"
+    end
+
+    # One libvips process per processor at a time; the result keeps the order of paths.
+    def resize_all(paths)
+        queue = Queue.new
+        paths.each { |path| queue.push(path) }
+        queue.close
+        results = {}
+        lock = Mutex.new
+        workers = Array.new([Etc.nprocessors, paths.size].min) do
+            Thread.new do
+                while (path = queue.pop)
+                    image = resize(path)
+                    lock.synchronize { results[path] = image }
+                end
+            end
+        end
+        workers.each(&:join)
+        paths.to_h { |path| [path, results.fetch(path)] }
     end
 
     def resize(path)

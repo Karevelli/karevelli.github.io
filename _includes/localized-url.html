@@ -1,10 +1,14 @@
 {%- comment -%}
     Outputs include.url, or its Spanish version when the page is Spanish and that version exists.
-    site_urls is the list built by the default layout; layouts rendered before it build their own
-    on first use, and the assigned variable lasts for the rest of that layout.
+    site_urls is the list of the default layout; layouts rendered before it take the one of the
+    jekyll-build-cache plugin or, without it, build their own on first use. The assigned variable
+    lasts for the rest of that layout.
 {%- endcomment -%}
 {%- assign localized_url = include.url -%}
 {%- if page.lang == 'es' -%}
+    {%- unless site_urls -%}
+        {%- assign site_urls = site.page_urls -%}
+    {%- endunless -%}
     {%- unless site_urls -%}
         {%- assign site_urls = site.pages | map: "url" | join: ' ' | prepend: ' ' | append: ' ' -%}
     {%- endunless -%}

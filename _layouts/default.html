@@ -1,9 +1,4 @@
 {%- assign t = site.data.i18n[page.lang] -%}
-{%- comment -%}
-    Every page url, space separated, so lookups are a cheap "contains": reading site.pages
-    reapplies the front matter defaults to every page, and their glob scans the whole site.
-{%- endcomment -%}
-{%- assign site_urls = site.pages | map: "url" | join: ' ' | prepend: ' ' | append: ' ' -%}
 {%- if page.lang == 'es' -%}
     {%- assign url_en = page.url | remove_first: '/es' -%}
     {%- assign url_es = page.url -%}
@@ -13,6 +8,15 @@
     {%- assign url_es = page.url | prepend: '/es' -%}
     {%- assign alternate_key = url_es | prepend: ' ' | append: ' ' -%}
 {%- endif -%}
+{%- comment -%}
+    Every page url, space separated, so lookups are a cheap "contains". The jekyll-build-cache
+    plugin builds it once; without it (Pages building from the branch) it is built here, and
+    reading site.pages reapplies the front matter defaults to every page, slowly.
+{%- endcomment -%}
+{%- assign site_urls = site.page_urls -%}
+{%- unless site_urls -%}
+    {%- assign site_urls = site.pages | map: "url" | join: ' ' | prepend: ' ' | append: ' ' -%}
+{%- endunless -%}
 {%- assign has_alternate = false -%}
 {%- if site_urls contains alternate_key -%}
     {%- assign has_alternate = true -%}
