@@ -1,10 +1,12 @@
-// Sorts the file list of a model folder into models and texture channels.
+// Sorts the file list of a model folder into models, texture channels and effect files.
 // The folder is matched by name only: a model file never says which textures it uses.
 
 export const CHANNELS = ['color', 'normal', 'roughness', 'metalness', 'height', 'ao', 'emissive', 'opacity', 'orm'];
 
 const MODEL_EXTENSIONS = ['fbx'];
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
+const SHADER_EXTENSION = 'glsl';
+const CONFIG_NAME = 'viewer.json';
 
 const SUFFIXES = [
     { suffix: 'BaseColor', channel: 'color' },
@@ -60,12 +62,15 @@ function splitName(name)
     return { base: name.substring(0, dot), extension: name.substring(dot + 1).toLowerCase() };
 }
 
-// Returns { models: [{ url, name }], textures: Map<channel, { url, name, flipY }> }.
+// Returns { models: [{ url, name }], textures: Map<channel, { url, name, flipY }>,
+// config: url of viewer.json or null, shaders: Map<file name, url> of the .glsl files }.
 // When a channel has more than one image, the first one in the list is kept.
 export function classifyFiles(urls)
 {
     const models = [];
     const textures = new Map();
+    const shaders = new Map();
+    let config = null;
 
     for (const url of urls)
     {
@@ -75,6 +80,18 @@ export function classifyFiles(urls)
         if (MODEL_EXTENSIONS.includes(extension))
         {
             models.push({ url, name: base });
+            continue;
+        }
+
+        if (name.toLowerCase() === CONFIG_NAME)
+        {
+            config = url;
+            continue;
+        }
+
+        if (extension === SHADER_EXTENSION)
+        {
+            shaders.set(name, url);
             continue;
         }
 
@@ -95,5 +112,5 @@ export function classifyFiles(urls)
         }
     }
 
-    return { models, textures };
+    return { models, textures, config, shaders };
 }
