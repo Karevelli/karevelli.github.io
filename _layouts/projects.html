@@ -1,0 +1,6 @@
+---
+layout: default
+---
+{%- assign t = site.data.i18n[page.lang] -%}
+<h1>{{ t.projects.heading }}</h1>
+{% include project-grid.html mode='all' %}

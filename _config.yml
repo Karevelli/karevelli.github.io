@@ -1,0 +1,48 @@
+title: Karevelli
+tagline: 3D Artist
+description: >-
+  Portfolio of Karina Belén Revelli, 3D artist: models, textures and renders.
+url: https://karevelli.github.io
+baseurl: ""
+
+author:
+  name: Karina Belén Revelli
+
+lang: en
+
+permalink: /:path/
+
+# How many of the newest projects Home shows when none is featured.
+home_latest: 6
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+      lang: en
+  - scope:
+      path: "projects"
+    values:
+      layout: project
+  # Any Spanish version, at the root or in any folder, is served under /es/.
+  - scope:
+      path: "**/index.es.*"
+    values:
+      lang: es
+      permalink: /es/:path/
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - README.md
+  - LICENSE-CODE.md
+  - LICENSE-ARTWORK.md
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+plugins:
+  - jekyll-seo-tag

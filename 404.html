@@ -1,0 +1,11 @@
+---
+title: Page not found
+permalink: /404.html
+sitemap: false
+---
+{%- assign not_found = site.data.i18n.en.not_found -%}
+<section class="not-found">
+    <h1>{{ not_found.heading }}</h1>
+    <p>{{ not_found.text }}</p>
+    <p><a href="{{ '/' | relative_url }}">{{ not_found.home }}</a></p>
+</section>

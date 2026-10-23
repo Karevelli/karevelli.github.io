@@ -1,0 +1,13 @@
+---
+layout: default
+---
+{%- assign t = site.data.i18n[page.lang] -%}
+{%- capture contact_list -%}
+    {%- include contact-links.html -%}
+{%- endcapture -%}
+<h1>{{ t.contact.heading }}</h1>
+{% if contact_list != '' -%}
+{{ contact_list }}
+{%- else -%}
+<p class="empty">{{ t.contact.empty }}</p>
+{%- endif %}

@@ -1,0 +1,12 @@
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noai, noimageai">
+    <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+    {%- if has_alternate %}
+    <link rel="alternate" hreflang="en" href="{{ url_en | absolute_url }}">
+    <link rel="alternate" hreflang="es" href="{{ url_es | absolute_url }}">
+    <link rel="alternate" hreflang="x-default" href="{{ url_en | absolute_url }}">
+    {%- endif %}
+    {% seo %}
+    {%- include viewer-3d.html %}
