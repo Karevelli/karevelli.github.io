@@ -1,0 +1,15 @@
+{
+    "effects": [
+        {
+            "shader": "cel",
+            "edgeWidth": 1,
+            "depthEdge": 0.07,
+            "normalEdge": 0.4,
+            "tones": 1,
+            "threshold": 0.5,
+            "shadowTone": 0.4,
+            "lit": 1,
+            "lightDirection": [-0.1962, 0.8192, -0.539]
+        }
+    ]
+}
