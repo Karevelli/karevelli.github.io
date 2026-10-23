@@ -41,6 +41,8 @@ exclude:
   - README.md
   - LICENSE-CODE.md
   - LICENSE-ARTWORK.md
+  - GUIA.md
+  - Guia
 
 markdown: kramdown
 kramdown:
