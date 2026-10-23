@@ -1,4 +1,4 @@
 <figure class="viewer-3d" data-viewer-3d>
-    <script type="application/json">{"name": {{ include.name }}, "files": [{{ include.files }}]}</script>
-    <a href="{{ include.anchor }}</a>
+    <script type="application/json">{"name": {{ include.name | jsonify }}, "files": [{{ include.files }}]}</script>
+    <p class="viewer-3d__fallback"><strong>{{ include.name }}</strong><br>{{ site.data.i18n[page.lang].viewer.fallback }}</p>
 </figure>

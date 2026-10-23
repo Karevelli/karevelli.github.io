@@ -21,6 +21,8 @@ en:
     back: Back to projects
   project:
     rights: "All artwork on this page © %author%. All rights reserved. It may not be used, reproduced or used to train AI without her permission."
+  viewer:
+    fallback: The 3D viewer needs JavaScript and WebGL.
   contact:
     heading: Contact
     empty: Contact details coming soon.
@@ -51,6 +53,8 @@ es:
     back: Volver a proyectos
   project:
     rights: "Todas las obras de esta página © %author%. Todos los derechos reservados. No pueden usarse, reproducirse ni usarse para entrenar IA sin su permiso."
+  viewer:
+    fallback: El visor 3D necesita JavaScript y WebGL.
   contact:
     heading: Contacto
     empty: Los datos de contacto estarán disponibles pronto.
