@@ -1,0 +1,62 @@
+# Interface strings by language. Templates read them through site.data.i18n[page.lang].
+# %year% and %author% are replaced by the templates.
+
+en:
+  language_name: English
+  language_label: Language
+  nav:
+    label: Main
+    home: Home
+    projects: Projects
+    about: About
+    contact: Contact
+  home:
+    tagline: 3D Artist
+    featured_heading: Featured projects
+    latest_heading: Latest projects
+    view_all: See all projects
+  projects:
+    heading: Projects
+    empty: No projects yet.
+    back: Back to projects
+  project:
+    rights: "All artwork on this page © %author%. All rights reserved. It may not be used, reproduced or used to train AI without her permission."
+  contact:
+    heading: Contact
+    empty: Contact details coming soon.
+  footer:
+    rights: "© %year% %author%. All rights reserved."
+  not_found:
+    heading: Page not found
+    text: The page you are looking for does not exist.
+    home: Back to home
+
+es:
+  language_name: Español
+  language_label: Idioma
+  nav:
+    label: Principal
+    home: Inicio
+    projects: Proyectos
+    about: Sobre mí
+    contact: Contacto
+  home:
+    tagline: Artista 3D
+    featured_heading: Proyectos destacados
+    latest_heading: Últimos proyectos
+    view_all: Ver todos los proyectos
+  projects:
+    heading: Proyectos
+    empty: Todavía no hay proyectos.
+    back: Volver a proyectos
+  project:
+    rights: "Todas las obras de esta página © %author%. Todos los derechos reservados. No pueden usarse, reproducirse ni usarse para entrenar IA sin su permiso."
+  contact:
+    heading: Contacto
+    empty: Los datos de contacto estarán disponibles pronto.
+  footer:
+    rights: "© %year% %author%. Todos los derechos reservados."
+  not_found:
+    heading: Página no encontrada
+    text: La página que buscás no existe.
+    home: Volver al inicio

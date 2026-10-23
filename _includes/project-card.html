@@ -1,0 +1,48 @@
+{%- comment -%}
+    Card of one project (include.project, its English page). On Spanish pages it uses the
+    Spanish version of the project when include.translations has one.
+{%- endcomment -%}
+{%- assign card_page = include.project -%}
+{%- if page.lang == 'es' -%}
+    {%- assign card_es_url = include.project.url | prepend: '/es' -%}
+    {%- assign card_es_page = include.translations | where: "url", card_es_url | first -%}
+    {%- if card_es_page -%}
+        {%- assign card_page = card_es_page -%}
+    {%- endif -%}
+{%- endif -%}
+{%- assign card_dir_size = include.project.path.size | minus: include.project.name.size -%}
+{%- assign card_dir = include.project.path | slice: 0, card_dir_size | prepend: '/' -%}
+{%- assign card_cover = '' -%}
+{%- if include.project.cover -%}
+    {%- assign card_cover = include.project.cover | prepend: card_dir -%}
+{%- else -%}
+    {%- assign card_candidates = site.static_files | where_exp: "file", "file.path contains card_dir" | sort: "path" -%}
+    {%- for card_file in card_candidates -%}
+        {%- assign card_head = card_file.path | slice: 0, card_dir.size -%}
+        {%- assign card_rest = card_file.path | remove_first: card_dir -%}
+        {%- assign card_ext = card_file.extname | downcase -%}
+        {%- if card_cover == '' and card_head == card_dir -%}
+            {%- unless card_rest contains '/' -%}
+                {%- if card_ext == '.png' or card_ext == '.jpg' or card_ext == '.jpeg' or card_ext == '.webp' or card_ext == '.gif' -%}
+                    {%- assign card_cover = card_file.path -%}
+                {%- endif -%}
+            {%- endunless -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif %}
+    <a class="card" href="{{ card_page.url | relative_url }}">
+        {%- if card_cover != '' %}
+        <img class="card-cover" src="{{ card_cover | relative_url }}" alt="" loading="lazy">
+        {%- else %}
+        <span class="card-cover card-cover-text">{{ card_page.title | escape }}</span>
+        {%- endif %}
+        <span class="card-body">
+            {%- if card_cover != '' %}
+            <span class="card-title">{{ card_page.title | escape }}</span>
+            {%- endif %}
+            <span class="card-year">{{ include.project.year }}</span>
+            {%- if card_page.summary %}
+            <span class="card-summary">{{ card_page.summary | escape }}</span>
+            {%- endif %}
+        </span>
+    </a>

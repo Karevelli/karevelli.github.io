@@ -1,0 +1,95 @@
+{%- comment -%}
+    Rewrites the rendered HTML of a page (include.html), whose source folder is include.dir:
+    1. Relative href and src values become absolute from the source folder, so a Spanish page
+       served under /es/ loads the same files as its English version.
+    2. A link to a folder whose direct children include an .fbx becomes a 3D viewer element.
+{%- endcomment -%}
+{%- assign rewrite_html = include.html -%}
+{%- assign rewrite_attributes = ' href="| src="' | split: '|' -%}
+{%- for rewrite_attribute in rewrite_attributes -%}
+    {%- assign rewrite_parts = rewrite_html | split: rewrite_attribute -%}
+    {%- assign rewrite_out = rewrite_parts.first -%}
+    {%- for rewrite_part in rewrite_parts offset: 1 -%}
+        {%- assign rewrite_value = rewrite_part | split: '"' | first -%}
+        {%- assign rewrite_first_char = rewrite_value | slice: 0 -%}
+        {%- assign rewrite_scheme = rewrite_value | split: '/' | first -%}
+        {%- if rewrite_first_char == '/' or rewrite_first_char == '#' or rewrite_scheme contains ':' -%}
+            {%- assign rewrite_out = rewrite_out | append: rewrite_attribute | append: rewrite_part -%}
+        {%- else -%}
+            {%- assign rewrite_segments = include.dir | append: rewrite_value | split: '/' -%}
+            {%- assign rewrite_stack = '' | split: '' -%}
+            {%- for rewrite_segment in rewrite_segments -%}
+                {%- if rewrite_segment == '..' -%}
+                    {%- assign rewrite_stack = rewrite_stack | pop -%}
+                {%- elsif rewrite_segment != '.' and rewrite_segment != '' -%}
+                    {%- assign rewrite_stack = rewrite_stack | push: rewrite_segment -%}
+                {%- endif -%}
+            {%- endfor -%}
+            {%- assign rewrite_absolute = rewrite_stack | join: '/' | prepend: '/' -%}
+            {%- assign rewrite_last_segment = rewrite_segments | last -%}
+            {%- assign rewrite_value_end = rewrite_value | slice: -1 -%}
+            {%- if rewrite_absolute != '/' -%}
+                {%- if rewrite_value_end == '/' or rewrite_last_segment == '.' or rewrite_last_segment == '..' -%}
+                    {%- assign rewrite_absolute = rewrite_absolute | append: '/' -%}
+                {%- endif -%}
+            {%- endif -%}
+            {%- assign rewrite_rest = rewrite_part | remove_first: rewrite_value -%}
+            {%- assign rewrite_out = rewrite_out | append: rewrite_attribute | append: rewrite_absolute | append: rewrite_rest -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {%- assign rewrite_html = rewrite_out -%}
+{%- endfor -%}
+{%- assign rewrite_parts = rewrite_html | split: '<a href="' -%}
+{%- assign rewrite_out = rewrite_parts.first -%}
+{%- for rewrite_part in rewrite_parts offset: 1 -%}
+    {%- assign rewrite_url = rewrite_part | split: '"' | first -%}
+    {%- assign rewrite_first_char = rewrite_url | slice: 0 -%}
+    {%- assign rewrite_first_two = rewrite_url | slice: 0, 2 -%}
+    {%- assign rewrite_has_fbx = false -%}
+    {%- assign rewrite_files = '' -%}
+    {%- if rewrite_first_char == '/' and rewrite_first_two != '//' -%}
+        {%- assign rewrite_folder = rewrite_url -%}
+        {%- assign rewrite_last_char = rewrite_url | slice: -1 -%}
+        {%- if rewrite_last_char != '/' -%}
+            {%- assign rewrite_folder = rewrite_url | append: '/' -%}
+        {%- endif -%}
+        {%- assign rewrite_candidates = site.static_files | where_exp: "file", "file.path contains rewrite_folder" | sort: "path" -%}
+        {%- for rewrite_file in rewrite_candidates -%}
+            {%- assign rewrite_head = rewrite_file.path | slice: 0, rewrite_folder.size -%}
+            {%- assign rewrite_rest = rewrite_file.path | remove_first: rewrite_folder -%}
+            {%- if rewrite_head == rewrite_folder -%}
+                {%- unless rewrite_rest contains '/' -%}
+                    {%- assign rewrite_json_path = rewrite_file.path | jsonify -%}
+                    {%- if rewrite_files != '' -%}
+                        {%- assign rewrite_files = rewrite_files | append: ', ' -%}
+                    {%- endif -%}
+                    {%- assign rewrite_files = rewrite_files | append: rewrite_json_path -%}
+                    {%- assign rewrite_ext = rewrite_file.extname | downcase -%}
+                    {%- if rewrite_ext == '.fbx' -%}
+                        {%- assign rewrite_has_fbx = true -%}
+                    {%- endif -%}
+                {%- endunless -%}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endif -%}
+    {%- if rewrite_has_fbx -%}
+        {%- assign rewrite_anchor = rewrite_part | split: '</a>' | first -%}
+        {%- assign rewrite_after = rewrite_part | remove_first: rewrite_anchor | remove_first: '</a>' -%}
+        {%- assign rewrite_open_tag = rewrite_anchor | split: '>' | first | append: '>' -%}
+        {%- assign rewrite_name = rewrite_anchor | remove_first: rewrite_open_tag | strip_html | strip | jsonify -%}
+        {%- assign rewrite_out_tail = rewrite_out | slice: -3, 3 -%}
+        {%- assign rewrite_after_head = rewrite_after | slice: 0, 4 -%}
+        {%- if rewrite_out_tail == '<p>' and rewrite_after_head == '</p>' -%}
+            {%- assign rewrite_keep = rewrite_out.size | minus: 3 -%}
+            {%- assign rewrite_out = rewrite_out | slice: 0, rewrite_keep -%}
+            {%- assign rewrite_after = rewrite_after | remove_first: '</p>' -%}
+        {%- endif -%}
+        {%- capture rewrite_figure -%}
+            {%- include model-figure.html name=rewrite_name files=rewrite_files anchor=rewrite_anchor -%}
+        {%- endcapture -%}
+        {%- assign rewrite_out = rewrite_out | append: rewrite_figure | append: rewrite_after -%}
+    {%- else -%}
+        {%- assign rewrite_out = rewrite_out | append: '<a href="' | append: rewrite_part -%}
+    {%- endif -%}
+{%- endfor -%}
+{{- rewrite_out -}}

@@ -1,0 +1,10 @@
+# Contact details. Only the fields with a value are shown on the site.
+email: ""
+
+links:
+  - label: ArtStation
+    url: ""
+  - label: Instagram
+    url: ""
+  - label: LinkedIn
+    url: ""

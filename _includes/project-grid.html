@@ -1,0 +1,47 @@
+{%- comment -%}
+    Card grid of the listed projects, newest year first and by title within a year.
+    include.mode "home": the featured projects, or the newest site.home_latest when none is featured.
+{%- endcomment -%}
+{%- assign grid_projects = '' | split: '' -%}
+{%- assign grid_translations = '' | split: '' -%}
+{%- for grid_page in site.pages -%}
+    {%- assign grid_path_parts = grid_page.path | split: '/' -%}
+    {%- if grid_path_parts.size == 3 and grid_path_parts.first == 'projects' -%}
+        {%- if grid_path_parts.last == 'index.md' -%}
+            {%- unless grid_page.listed == false -%}
+                {%- assign grid_projects = grid_projects | push: grid_page -%}
+            {%- endunless -%}
+        {%- elsif grid_page.lang == 'es' -%}
+            {%- assign grid_translations = grid_translations | push: grid_page -%}
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- assign grid_limit = grid_projects.size -%}
+{%- if include.mode == 'home' -%}
+    {%- assign grid_featured = grid_projects | where: "featured", true -%}
+    {%- if grid_featured.size > 0 -%}
+        {%- assign grid_projects = grid_featured -%}
+        {%- assign grid_heading = t.home.featured_heading -%}
+    {%- else -%}
+        {%- assign grid_limit = site.home_latest -%}
+        {%- assign grid_heading = t.home.latest_heading -%}
+    {%- endif %}
+<h2>{{ grid_heading }}</h2>
+{%- endif -%}
+{%- if grid_projects.size == 0 %}
+<p class="empty">{{ t.projects.empty }}</p>
+{%- else -%}
+    {%- assign grid_years = grid_projects | group_by: "year" | sort: "name" | reverse -%}
+    {%- assign grid_count = 0 %}
+<div class="cards">
+    {%- for grid_year in grid_years -%}
+        {%- assign grid_items = grid_year.items | sort: "title" -%}
+        {%- for grid_item in grid_items -%}
+            {%- if grid_count < grid_limit -%}
+                {%- include project-card.html project=grid_item translations=grid_translations -%}
+                {%- assign grid_count = grid_count | plus: 1 -%}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endfor %}
+</div>
+{%- endif -%}

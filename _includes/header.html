@@ -1,0 +1,23 @@
+
+    <header class="site-header">
+        <div class="container header-inner">
+            <a class="brand" href="{% include localized-url.html url='/' %}">{{ site.title }}</a>
+            <nav class="site-nav" aria-label="{{ t.nav.label }}">
+                <a href="{% include localized-url.html url='/' %}">{{ t.nav.home }}</a>
+                <a href="{% include localized-url.html url='/projects/' %}">{{ t.nav.projects }}</a>
+                <a href="{% include localized-url.html url='/about/' %}">{{ t.nav.about }}</a>
+                <a href="{% include localized-url.html url='/contact/' %}">{{ t.nav.contact }}</a>
+            </nav>
+            {%- if has_alternate %}
+            <nav class="lang-switch" aria-label="{{ t.language_label }}">
+                {%- if page.lang == 'es' %}
+                <a href="{{ url_en | relative_url }}" hreflang="en" lang="en">{{ site.data.i18n.en.language_name }}</a>
+                <span aria-current="true">{{ site.data.i18n.es.language_name }}</span>
+                {%- else %}
+                <span aria-current="true">{{ site.data.i18n.en.language_name }}</span>
+                <a href="{{ url_es | relative_url }}" hreflang="es" lang="es">{{ site.data.i18n.es.language_name }}</a>
+                {%- endif %}
+            </nav>
+            {%- endif %}
+        </div>
+    </header>

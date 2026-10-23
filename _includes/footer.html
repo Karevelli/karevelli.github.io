@@ -1,0 +1,12 @@
+{%- assign footer_year = site.time | date: '%Y' -%}
+{%- capture footer_contact -%}
+    {%- include contact-links.html -%}
+{%- endcapture %}
+    <footer class="site-footer">
+        <div class="container">
+            {%- if footer_contact != '' %}
+            {{ footer_contact }}
+            {%- endif %}
+            <p class="rights">{{ t.footer.rights | replace: '%year%', footer_year | replace: '%author%', site.author.name }}</p>
+        </div>
+    </footer>
