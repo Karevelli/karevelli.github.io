@@ -107,10 +107,8 @@
     {%- if rewrite_has_fbx -%}
         {%- assign rewrite_anchor = rewrite_part | split: '</a>' | first -%}
         {%- assign rewrite_after = rewrite_part | remove_first: rewrite_anchor | remove_first: '</a>' -%}
-        {%- assign rewrite_folder_href = rewrite_folder | uri_escape -%}
-        {%- assign rewrite_anchor = rewrite_anchor | remove_first: rewrite_url | prepend: rewrite_folder_href -%}
         {%- assign rewrite_open_tag = rewrite_anchor | split: '>' | first | append: '>' -%}
-        {%- assign rewrite_name = rewrite_anchor | remove_first: rewrite_open_tag | strip_html | strip | jsonify -%}
+        {%- assign rewrite_name = rewrite_anchor | remove_first: rewrite_open_tag | strip_html | strip -%}
         {%- comment -%} A figure cannot live inside a paragraph: close it before, dropping it when empty. {%- endcomment -%}
         {%- assign rewrite_in_paragraph = false -%}
         {%- assign rewrite_out_tail = rewrite_out | slice: -3, 3 -%}
